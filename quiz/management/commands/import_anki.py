@@ -26,10 +26,16 @@ class Command(BaseCommand):
             required=True,
             help='Path to Anki collection.media folder'
         )
+        parser.add_argument(
+            '--skip-existing',
+            action='store_true',
+            help='Skip notes already in the database (faster resume)'
+        )
 
     def handle(self, *args, **options):
         anki_db_path = options['anki_db']
         media_dir = options['media_dir']
+        skip_existing = options.get('skip_existing')
 
         self.stdout.write('Connecting to Anki database...')
         conn = sqlite3.connect(anki_db_path)
@@ -38,14 +44,12 @@ class Command(BaseCommand):
         # --- Step 1: Import Decks ---
         self.stdout.write('Importing decks...')
 
-        # Anki 2.1.28+ stores decks in a separate 'decks' table
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
         tables = [row[0] for row in cursor.fetchall()]
 
         deck_map = {}
 
         if 'decks' in tables:
-            # New Anki format
             cursor.execute("SELECT id, name FROM decks")
             for deck_id, deck_name in cursor.fetchall():
                 deck, created = Deck.objects.get_or_create(
@@ -56,7 +60,6 @@ class Command(BaseCommand):
                 if created:
                     self.stdout.write(f'  Created deck: {deck_name}')
         else:
-            # Old Anki format - decks stored as JSON in col table
             cursor.execute("SELECT decks FROM col")
             row = cursor.fetchone()
             decks_json = json.loads(row[0])
@@ -73,7 +76,6 @@ class Command(BaseCommand):
         # --- Step 2: Import Notes ---
         self.stdout.write('Importing notes...')
 
-        # Get deck id per note via cards table
         cursor.execute("SELECT nid, did FROM cards")
         note_deck_map = {}
         for nid, did in cursor.fetchall():
@@ -82,11 +84,22 @@ class Command(BaseCommand):
         cursor.execute("SELECT id, flds, tags FROM notes")
         notes = cursor.fetchall()
 
-        # Fallback deck
         fallback_deck = list(deck_map.values())[0] if deck_map else None
 
+        existing_ids = set()
+        if skip_existing:
+            self.stdout.write('  Fetching existing note ids...')
+            existing_ids = set(
+                Note.objects.values_list('anki_note_id', flat=True)
+            )
+            self.stdout.write(f'  Skipping {len(existing_ids)} already imported notes')
+
         note_map = {}
+        new_count = 0
         for note_id, flds, tags in notes:
+            if skip_existing and note_id in existing_ids:
+                note_map[note_id] = None
+                continue
             has_images = '<img' in flds
             deck_id = note_deck_map.get(note_id)
             deck = deck_map.get(deck_id, fallback_deck)
@@ -100,8 +113,10 @@ class Command(BaseCommand):
                 }
             )
             note_map[note_id] = note
+            if created:
+                new_count += 1
 
-        self.stdout.write(f'  Imported {len(note_map)} notes')
+        self.stdout.write(f'  Imported {new_count} new notes')
 
         # --- Step 3: Import Cards ---
         self.stdout.write('Importing cards...')
@@ -110,7 +125,7 @@ class Command(BaseCommand):
 
         card_count = 0
         for card_id, note_id, ord_ in cards:
-            if note_id not in note_map:
+            if note_id not in note_map or note_map[note_id] is None:
                 continue
             Card.objects.get_or_create(
                 anki_card_id=card_id,
