@@ -23,15 +23,18 @@ class CardSerializer(serializers.ModelSerializer):
 
 def rewrite_img_urls(html):
     """Rewrite img src attributes to use Cloudinary URLs"""
+    import cloudinary.api
+
     def replace(match):
         filename = match.group(1).strip().rstrip('\\').rstrip('/')
         name, ext = os.path.splitext(filename)
-        ext = ext.lstrip('.')
-        url = cloudinary.CloudinaryImage(name).build_url(
-            format=ext if ext else None,
-            secure=True
-        )
+        try:
+            result = cloudinary.api.resource(name)
+            url = result['secure_url']
+        except Exception:
+            return match.group(0)
         return f'src="{url}"'
+
     return re.sub(r'src="([^"]+)"', replace, html)
 
 
