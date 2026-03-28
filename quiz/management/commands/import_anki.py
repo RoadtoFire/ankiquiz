@@ -123,6 +123,16 @@ class Command(BaseCommand):
         cursor.execute("SELECT id, nid, ord FROM cards")
         cards = cursor.fetchall()
 
+        # When skipping existing notes, note_map has None values
+        # Build a lookup from the database directly
+        if skip_existing:
+            self.stdout.write('  Building note lookup from database...')
+            from quiz.models import Note as NoteModel
+            note_map = {
+                n.anki_note_id: n
+                for n in NoteModel.objects.all()
+            }
+
         card_count = 0
         for card_id, note_id, ord_ in cards:
             if note_id not in note_map or note_map[note_id] is None:
@@ -136,7 +146,7 @@ class Command(BaseCommand):
             )
             card_count += 1
 
-        self.stdout.write(f'  Imported {card_count} cards')
+        self.stdout.write(f'  Imported {card_count} new cards')
 
         conn.close()
 
