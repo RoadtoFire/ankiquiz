@@ -12,13 +12,19 @@ class Deck(models.Model):
 class Note(models.Model):
     deck = models.ForeignKey(Deck, on_delete=models.CASCADE, related_name='notes')
     anki_note_id = models.BigIntegerField(unique=True)
-    fields_raw = models.TextField()        # raw flds from anki, \x1f separated
-    tags = models.TextField(blank=True)    # space separated tags from anki
+    fields_raw = models.TextField()
+    tags = models.TextField(blank=True)
     has_images = models.BooleanField(default=False)
+    # Store pre-processed HTML with Cloudinary URLs already injected
+    fields_processed = models.TextField(blank=True)
 
     def get_fields(self):
-        """Split raw fields into a list"""
         return self.fields_raw.split('\x1f')
+
+    def get_processed_fields(self):
+        if self.fields_processed:
+            return self.fields_processed.split('\x1f')
+        return self.get_fields()
 
     def __str__(self):
         return f"Note {self.anki_note_id} ({self.deck.name})"
