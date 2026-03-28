@@ -24,7 +24,7 @@ class CardSerializer(serializers.ModelSerializer):
 def rewrite_img_urls(html):
     """Rewrite img src attributes to use Cloudinary URLs"""
     def replace(match):
-        filename = match.group(1)
+        filename = match.group(1).strip().rstrip('\\').rstrip('/')
         name, ext = os.path.splitext(filename)
         ext = ext.lstrip('.')
         url = cloudinary.CloudinaryImage(name).build_url(
