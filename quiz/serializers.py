@@ -1,7 +1,6 @@
 import os
 import re
 
-import cloudinary
 from rest_framework import serializers
 
 from .models import Card, Deck, Note
@@ -47,7 +46,6 @@ class NoteSerializer(serializers.ModelSerializer):
 
 
 class NoteListSerializer(serializers.ModelSerializer):
-    """Lightweight serializer for list views - no cards, no deck detail"""
     tags_list = serializers.SerializerMethodField()
     text = serializers.SerializerMethodField()
 
@@ -56,7 +54,7 @@ class NoteListSerializer(serializers.ModelSerializer):
         fields = ['id', 'anki_note_id', 'text', 'tags_list', 'has_images']
 
     def get_text(self, obj):
-        return obj.get_processed_fields()[0]    
+        return obj.get_processed_fields()[0]
 
     def get_tags_list(self, obj):
         if not obj.tags:
