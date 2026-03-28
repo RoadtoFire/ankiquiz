@@ -2,7 +2,6 @@ import os
 import re
 
 import cloudinary
-from django.conf import settings
 from rest_framework import serializers
 
 from .models import Card, Deck, Note
@@ -27,7 +26,11 @@ def rewrite_img_urls(html):
     def replace(match):
         filename = match.group(1)
         name, ext = os.path.splitext(filename)
-        url = cloudinary.CloudinaryImage(name).build_url()
+        ext = ext.lstrip('.')
+        url = cloudinary.CloudinaryImage(name).build_url(
+            format=ext if ext else None,
+            secure=True
+        )
         return f'src="{url}"'
     return re.sub(r'src="([^"]+)"', replace, html)
 
