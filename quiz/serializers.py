@@ -22,8 +22,9 @@ class CardSerializer(serializers.ModelSerializer):
 
 
 def rewrite_img_urls(html):
-    """Rewrite img src attributes to use Cloudinary URLs"""
     import cloudinary.api
+    import logging
+    logger = logging.getLogger(__name__)
 
     def replace(match):
         filename = match.group(1).strip().rstrip('\\').rstrip('/')
@@ -31,9 +32,11 @@ def rewrite_img_urls(html):
         try:
             result = cloudinary.api.resource(name)
             url = result['secure_url']
-        except Exception:
+            logger.info(f'Cloudinary URL: {url}')
+            return f'src="{url}"'
+        except Exception as e:
+            logger.error(f'Cloudinary error for {name}: {e}')
             return match.group(0)
-        return f'src="{url}"'
 
     return re.sub(r'src="([^"]+)"', replace, html)
 
